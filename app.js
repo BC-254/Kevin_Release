@@ -4,7 +4,7 @@ const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hos
 // For production (e.g. GitHub Pages), register a dedicated App ID at https://api.deriv.com/docs/app-registration/
 // with your redirect URL (https://bc-254.github.io/Kevin_Release/).
 // Once registered, you can paste it here into PRODUCTION_APP_ID or enter it in the app settings modal.
-const PRODUCTION_APP_ID = ""; 
+const PRODUCTION_APP_ID = "34inlHAdbqgeqGEq8nzMo";
 const DEFAULT_APP_ID = IS_LOCAL ? "1089" : (PRODUCTION_APP_ID || "1089");
 
 const DERIV_GATEWAYS = ["ws.derivws.com", "ws.binaryws.com"];
