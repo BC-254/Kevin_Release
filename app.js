@@ -7,7 +7,24 @@ const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hos
 const PRODUCTION_APP_ID = "34inlHAdbqgeqGEq8nzMo";
 const DEFAULT_APP_ID = IS_LOCAL ? "1089" : (PRODUCTION_APP_ID || "1089");
 
-const DERIV_GATEWAYS = ["ws.derivws.com", "ws.binaryws.com"];
+function getDerivGateways(id) {
+    const isAlphanumeric = /[a-zA-Z]/.test(id);
+    if (isAlphanumeric) {
+        // Alphanumeric App IDs (from developers.deriv.com) use Deriv's modern options/cloud gateway
+        return [
+            { name: "api.derivws.com (Modern Gateway)", url: `wss://api.derivws.com/trading/v1/options/ws/public?app_id=${id}&l=EN&brand=deriv` },
+            { name: "api.derivws.com (Direct)", url: `wss://api.derivws.com/trading/v1/options/ws/public` }
+        ];
+    } else {
+        // Numeric IDs (e.g. 1089 on localhost) work across modern and legacy gateways
+        return [
+            { name: "api.derivws.com (Modern Gateway)", url: `wss://api.derivws.com/trading/v1/options/ws/public?app_id=${id}&l=EN&brand=deriv` },
+            { name: "ws.derivws.com (Legacy v3)", url: `wss://ws.derivws.com/websockets/v3?app_id=${id}&l=EN&brand=deriv` },
+            { name: "ws.binaryws.com (Legacy v3)", url: `wss://ws.binaryws.com/websockets/v3?app_id=${id}&l=EN&brand=deriv` }
+        ];
+    }
+}
+
 let currentGatewayIndex = 0;
 let appId = localStorage.getItem('kelvin_app_id') || DEFAULT_APP_ID;
 let apiToken = localStorage.getItem('kelvin_api_token') || null;
@@ -245,8 +262,13 @@ async function connectWS() {
     updateConnectionStatus('connecting');
     symbolsReady = false;
 
-    const currentHost = DERIV_GATEWAYS[currentGatewayIndex];
-    const wsUrl = `wss://${currentHost}/websockets/v3?app_id=${appId}&l=EN&brand=deriv`;
+    const gateways = getDerivGateways(appId);
+    if (currentGatewayIndex >= gateways.length) {
+        currentGatewayIndex = 0;
+    }
+    const currentGateway = gateways[currentGatewayIndex];
+    const wsUrl = currentGateway.url;
+    const currentHost = currentGateway.name;
 
     if (apiToken && !authFailed) {
         addLog(`Connecting and authorizing with API token (${currentHost}, App ID: ${appId})...`);
@@ -263,7 +285,8 @@ async function connectWS() {
             ws.onclose = null;
             ws.onerror = null;
             ws.close();
-            currentGatewayIndex = (currentGatewayIndex + 1) % DERIV_GATEWAYS.length;
+            const gw = getDerivGateways(appId);
+            currentGatewayIndex = (currentGatewayIndex + 1) % gw.length;
             connectWS();
         }
     }, 6000);
@@ -398,8 +421,9 @@ async function connectWS() {
         }
 
         // Switch to alternate gateway on abnormal closure
+        const gateways = getDerivGateways(appId);
         if (event.code !== 1000) {
-            currentGatewayIndex = (currentGatewayIndex + 1) % DERIV_GATEWAYS.length;
+            currentGatewayIndex = (currentGatewayIndex + 1) % gateways.length;
         }
 
         // Real close code/reason instead of a generic message, so a bad
@@ -409,7 +433,8 @@ async function connectWS() {
         // Exponential backoff instead of hammering the server every 3s.
         reconnectAttempts++;
         const delay = Math.min(3000 * Math.pow(2, reconnectAttempts - 1), 30000);
-        addLog(`Reconnecting via ${DERIV_GATEWAYS[currentGatewayIndex]} in ${Math.round(delay / 1000)}s...`, 'error');
+        const nextGw = gateways[currentGatewayIndex];
+        addLog(`Reconnecting via ${nextGw ? nextGw.name : 'gateway'} in ${Math.round(delay / 1000)}s...`, 'error');
         setTimeout(connectWS, delay);
     };
 
