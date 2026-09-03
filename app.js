@@ -1,5 +1,12 @@
 // --- Configuration & State ---
-const DEFAULT_APP_ID = "1089"; // Deriv's public test app_id — register your own at api.deriv.com for production use
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+// Deriv's test app_id 1089 works automatically on localhost/127.0.0.1.
+// For production (e.g. GitHub Pages), register a dedicated App ID at https://api.deriv.com/docs/app-registration/
+// with your redirect URL (https://bc-254.github.io/Kevin_Release/).
+// Once registered, you can paste it here into PRODUCTION_APP_ID or enter it in the app settings modal.
+const PRODUCTION_APP_ID = ""; 
+const DEFAULT_APP_ID = IS_LOCAL ? "1089" : (PRODUCTION_APP_ID || "1089");
+
 const DERIV_GATEWAYS = ["ws.derivws.com", "ws.binaryws.com"];
 let currentGatewayIndex = 0;
 let appId = localStorage.getItem('kelvin_app_id') || DEFAULT_APP_ID;
@@ -16,6 +23,7 @@ let pingInterval = null;
 let tickPollInterval = null;
 let reconnectAttempts = 0;
 let authFailed = false;
+let hasInvalidAppId = false;
 
 // Standard decimal precision for all tracked Deriv synthetic indices per official specs
 const DEFAULT_DECIMALS = {
@@ -241,9 +249,9 @@ async function connectWS() {
     const wsUrl = `wss://${currentHost}/websockets/v3?app_id=${appId}&l=EN&brand=deriv`;
 
     if (apiToken && !authFailed) {
-        addLog(`Connecting and authorizing with API token (${currentHost})...`);
+        addLog(`Connecting and authorizing with API token (${currentHost}, App ID: ${appId})...`);
     } else {
-        addLog(`Connecting to public socket (${currentHost})...`);
+        addLog(`Connecting to public market stream (${currentHost}, App ID: ${appId})...`);
     }
 
     ws = new WebSocket(wsUrl);
@@ -265,8 +273,9 @@ async function connectWS() {
             clearTimeout(connectionTimeoutTimer);
             connectionTimeoutTimer = null;
         }
+        hasInvalidAppId = false;
         updateConnectionStatus('connected');
-        addLog(`WebSocket connection opened (${currentHost})`);
+        addLog(`WebSocket connection opened (${currentHost}, App ID: ${appId})`);
 
         reconnectAttempts = 0;
 
@@ -291,6 +300,14 @@ async function connectWS() {
 
         if (data.error) {
             addLog(`API Error: ${data.error.message} (Code: ${data.error.code})`, 'error');
+
+            if (data.error.code === 'InvalidAppID') {
+                hasInvalidAppId = true;
+                updateConnectionStatus('invalid_app_id');
+                addLog(`App ID "${appId}" is not authorized for ${window.location.origin}. Please configure an App ID registered at api.deriv.com.`, 'error');
+                return;
+            }
+
             if (data.msg_type === 'authorize') {
                 authFailed = true;
                 addLog('API token rejected. Switching to public read-only mode. Log in again with a valid token to resume trading.', 'error');
@@ -367,6 +384,13 @@ async function connectWS() {
         }
         if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
         if (tickPollInterval) { clearInterval(tickPollInterval); tickPollInterval = null; }
+
+        if (hasInvalidAppId) {
+            updateConnectionStatus('invalid_app_id');
+            addLog(`WebSocket closed because App ID "${appId}" is not authorized for ${window.location.origin}. Reconnect paused until a valid App ID is configured.`, 'error');
+            return;
+        }
+
         updateConnectionStatus('disconnected');
         if (intentionallyClosed) {
             addLog('WebSocket connection closed cleanly. Not reconnecting.', 'error');
@@ -577,10 +601,24 @@ function pushPrice(symbol, price) {
 }
 
 function updateConnectionStatus(status) {
+    if (status === 'invalid_app_id') {
+        isConnected = false;
+        elGlobalStatusDot.className = 'status-indicator error';
+        elGlobalStatusText.innerHTML = 'App ID needed for this domain — <span style="text-decoration:underline;cursor:pointer;color:var(--accent-yellow);" id="open-config-status-btn">configure</span>';
+        const btn = document.getElementById('open-config-status-btn');
+        if (btn) btn.onclick = (e) => { e.stopPropagation(); openLoginModal(); };
+        elMarketStatusDot.className = 'status-indicator error';
+        elMarketStatusText.textContent = 'App ID required';
+        return;
+    }
+
     isConnected = status === 'connected';
     const classList = ['status-indicator', status];
     const connectingLabel = reconnectAttempts > 0 ? 'reconnecting...' : 'connecting...';
-    const text = status === 'connected' ? 'connected' : (status === 'connecting' ? connectingLabel : 'disconnected');
+    let text = status === 'connected' ? 'connected (public stream)' : (status === 'connecting' ? connectingLabel : 'disconnected');
+    if (status === 'connected' && apiToken && !authFailed) {
+        text = 'connected (authorized)';
+    }
 
     elGlobalStatusDot.className = classList.join(' ');
     elGlobalStatusText.textContent = text;
@@ -1818,12 +1856,13 @@ function logout() {
     apiToken = null;
     accountId = null;
     accountBalance = null;
-    appId = DEFAULT_APP_ID;
     authFailed = false;
     localStorage.removeItem('kelvin_api_token');
-    localStorage.removeItem('kelvin_app_id');
     localStorage.removeItem('kelvin_account_id');
+    // Note: Preserve kelvin_app_id so public live stream remains connected on hosted domains
+    appId = localStorage.getItem('kelvin_app_id') || DEFAULT_APP_ID;
     updateAuthUI();
+    addLog('Logged out of trading account. Staying connected to public live market stream.');
     connectWS();
 }
 
@@ -1908,43 +1947,87 @@ function setupEventListeners() {
         placePrediction(autoSuggestion.action);
     });
 
+    function openLoginModal() {
+        if (elInputAppId) {
+            const savedAppId = localStorage.getItem('kelvin_app_id');
+            elInputAppId.value = savedAppId || (appId !== '1089' ? appId : (IS_LOCAL ? '1089' : ''));
+        }
+        if (elInputApiToken) elInputApiToken.value = apiToken || '';
+        if (elInputAccountId) elInputAccountId.value = accountId || '';
+        const originHint = document.getElementById('current-origin-hint');
+        if (originHint) {
+            originHint.textContent = window.location.origin + window.location.pathname;
+        }
+        elLoginModal.style.display = 'flex';
+    }
+
     elLoginBtn.addEventListener('click', () => {
         if (apiToken && !authFailed) {
-            if (confirm("Are you sure you want to log out?")) logout();
+            if (confirm("You are currently logged in. Do you want to log out?")) logout();
         } else {
-            if (elInputAppId) elInputAppId.value = appId || DEFAULT_APP_ID;
-            if (elInputApiToken) elInputApiToken.value = apiToken || '';
-            if (elInputAccountId) elInputAccountId.value = accountId || '';
-            elLoginModal.style.display = 'flex';
+            openLoginModal();
         }
     });
+
+    const elModalCloseX = document.getElementById('modal-close-x');
+    if (elModalCloseX) {
+        elModalCloseX.addEventListener('click', () => { elLoginModal.style.display = 'none'; });
+    }
 
     elCancelLogin.addEventListener('click', () => {
         elLoginModal.style.display = 'none';
     });
 
+    const elSaveAppIdBtn = document.getElementById('save-app-id-btn');
+    if (elSaveAppIdBtn) {
+        elSaveAppIdBtn.addEventListener('click', () => {
+            const idVal = elInputAppId.value.trim();
+            if (!idVal) {
+                localStorage.removeItem('kelvin_app_id');
+                appId = DEFAULT_APP_ID;
+                addLog(`Reset App ID to default (${appId})`);
+            } else {
+                appId = idVal;
+                localStorage.setItem('kelvin_app_id', appId);
+                addLog(`Saved Deriv App ID: ${appId}`);
+            }
+            hasInvalidAppId = false;
+            reconnectAttempts = 0;
+            elLoginModal.style.display = 'none';
+            connectWS();
+        });
+    }
+
     elSubmitLogin.addEventListener('click', () => {
-        const idVal = elInputAppId.value.trim();
+        const customAppId = elInputAppId.value.trim();
         const tokenVal = elInputApiToken.value.trim();
         const accVal = elInputAccountId ? elInputAccountId.value.trim() : '';
 
-        if (idVal && tokenVal) {
-            appId = idVal;
-            apiToken = tokenVal;
-            if (accVal) accountId = accVal;
-            authFailed = false;
-
-            localStorage.setItem('kelvin_app_id', appId);
-            localStorage.setItem('kelvin_api_token', apiToken);
-            if (accVal) localStorage.setItem('kelvin_account_id', accountId);
-
-            elLoginModal.style.display = 'none';
-            addLog(`Saved login info (AppID: ${appId})`);
-            updateAuthUI();
-            connectWS();
-        } else {
-            alert("Please enter App ID and API Token.");
+        if (!tokenVal) {
+            alert("To log into your trading account, please enter your personal Deriv API Token.\n\n(To only stream live market data, click 'Save App ID Only' instead.)");
+            return;
         }
+
+        if (customAppId) {
+            appId = customAppId;
+            localStorage.setItem('kelvin_app_id', appId);
+        } else if (!appId || (appId === '1089' && !IS_LOCAL)) {
+            appId = DEFAULT_APP_ID;
+        }
+
+        apiToken = tokenVal;
+        if (accVal) accountId = accVal;
+        authFailed = false;
+        hasInvalidAppId = false;
+        reconnectAttempts = 0;
+
+        localStorage.setItem('kelvin_api_token', apiToken);
+        if (accVal) localStorage.setItem('kelvin_account_id', accountId);
+
+        elLoginModal.style.display = 'none';
+        addLog(`Saved login info (AppID: ${appId}, Token: ***)`);
+        updateAuthUI();
+        connectWS();
     });
 
     if (elShowLogBtn) {

@@ -383,24 +383,45 @@
 
     <!-- Login Modal -->
     <div class="modal-overlay" id="login-modal" style="display: none;">
-        <div class="modal">
-            <h2>Login to Deriv</h2>
-            <p>Enter your Deriv App ID, API Token, and Account ID to trade with real money.</p>
-            <div class="form-group">
-                <label for="app-id">App ID (e.g. 1089 or alphanumeric)</label>
-                <input type="text" id="app-id" placeholder="App ID">
+        <div class="modal" style="max-width: 480px; width: 92%;">
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h2 style="margin: 0; font-size: 1rem; color: var(--text-primary);">Deriv Connection &amp; Account</h2>
+                <button class="text-btn" id="modal-close-x" style="font-size: 18px; line-height: 1; padding: 2px 8px; cursor: pointer;">✕</button>
             </div>
-            <div class="form-group">
-                <label for="api-token">API Token (Requires Read & Trade scopes)</label>
-                <input type="password" id="api-token" placeholder="Your personal API token">
+            <p style="margin-bottom: 16px; font-size: 0.8rem; color: var(--text-secondary);">
+                You can browse live market ticks completely <strong>logged out</strong>. To execute real or demo trades, log in with your personal Deriv API token.
+            </p>
+
+            <div class="form-group" style="background: var(--bg-dark); padding: 12px; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 14px;">
+                <label for="app-id" style="font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <span>Deriv App ID</span>
+                    <span style="font-size: 0.72rem; color: var(--accent-cyan);">Public stream identifier</span>
+                </label>
+                <input type="text" id="app-id" placeholder="1089 (localhost) or registered App ID">
+                <small style="display: block; margin-top: 6px; color: var(--text-secondary); font-size: 0.72rem; line-height: 1.4;">
+                    <code>1089</code> works on <code>localhost</code>. For GitHub Pages or custom domains, register free at 
+                    <a href="https://api.deriv.com/docs/app-registration/" target="_blank" rel="noopener" style="color: var(--accent-yellow); text-decoration: underline;">api.deriv.com</a> with your redirect URL:
+                    <code id="current-origin-hint" style="display: block; margin-top: 4px; background: rgba(0,0,0,0.5); padding: 3px 6px; border-radius: 4px; color: var(--accent-green-bright); word-break: break-all;"></code>
+                </small>
             </div>
+
             <div class="form-group">
-                <label for="account-id">Account ID (e.g. CR1234567 or VRTC1234567)</label>
+                <label for="api-token" style="font-weight: 600;">Trading API Token <span style="font-size: 0.75rem; font-weight: normal; color: var(--text-secondary);">(Optional — for trading)</span></label>
+                <input type="password" id="api-token" placeholder="Leave empty to stay logged out (public live data)">
+                <small style="display: block; margin-top: 4px; color: var(--text-secondary); font-size: 0.72rem;">
+                    Generated in Deriv Account Settings &gt; API Token (Read &amp; Trade scopes).
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label for="account-id">Account ID <span style="font-size: 0.75rem; font-weight: normal; color: var(--text-secondary);">(Optional, e.g. CR1234567 or VRTC1234567)</span></label>
                 <input type="text" id="account-id" placeholder="Your Account ID">
             </div>
-            <div class="modal-actions" style="margin-top: 20px;">
-                <button class="text-btn" id="cancel-login">Cancel</button>
-                <button class="primary-btn" id="submit-login">Login</button>
+
+            <div class="modal-actions" style="margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+                <button class="text-btn" id="cancel-login" type="button">Cancel</button>
+                <button class="secondary-btn" id="save-app-id-btn" type="button" style="padding: 8px 12px; font-size: 0.8rem; background: transparent; border: 1px solid var(--accent-cyan); color: var(--accent-cyan); border-radius: 6px; cursor: pointer; font-weight: 500;">Save App ID Only (Public)</button>
+                <button class="primary-btn" id="submit-login" type="button" style="padding: 8px 14px; font-size: 0.8rem;">Login to Account</button>
             </div>
         </div>
     </div>
