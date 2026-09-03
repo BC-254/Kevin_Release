@@ -1,22 +1,17 @@
-// --- Configuration & State ---
+// Configuration & State
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-// Deriv's test app_id 1089 works automatically on localhost/127.0.0.1.
-// For production (e.g. GitHub Pages), register a dedicated App ID at https://api.deriv.com/docs/app-registration/
-// with your redirect URL (https://bc-254.github.io/Kevin_Release/).
-// Once registered, you can paste it here into PRODUCTION_APP_ID or enter it in the app settings modal.
 const PRODUCTION_APP_ID = "34inlHAdbqgeqGEq8nzMo";
 const DEFAULT_APP_ID = IS_LOCAL ? "1089" : (PRODUCTION_APP_ID || "1089");
 
 function getDerivGateways(id) {
     const isAlphanumeric = /[a-zA-Z]/.test(id);
     if (isAlphanumeric) {
-        // Alphanumeric App IDs (from developers.deriv.com) use Deriv's modern options/cloud gateway
         return [
             { name: "api.derivws.com (Modern Gateway)", url: `wss://api.derivws.com/trading/v1/options/ws/public?app_id=${id}&l=EN&brand=deriv` },
             { name: "api.derivws.com (Direct)", url: `wss://api.derivws.com/trading/v1/options/ws/public` }
         ];
     } else {
-        // Numeric IDs (e.g. 1089 on localhost) work across modern and legacy gateways
+        // Numeric IDs (on localhost)
         return [
             { name: "api.derivws.com (Modern Gateway)", url: `wss://api.derivws.com/trading/v1/options/ws/public?app_id=${id}&l=EN&brand=deriv` },
             { name: "ws.derivws.com (Legacy v3)", url: `wss://ws.derivws.com/websockets/v3?app_id=${id}&l=EN&brand=deriv` },
@@ -31,7 +26,6 @@ let apiToken = localStorage.getItem('kelvin_api_token') || null;
 let accountId = localStorage.getItem('kelvin_account_id') || null;
 let accountCurrency = 'USD';
 let accountBalance = null;
-
 let ws = null;
 let isConnected = false;
 let activeMarket = 'R_100';
@@ -59,7 +53,7 @@ const DEFAULT_DECIMALS = {
     '1HZ100V': 2
 };
 
-// Every Deriv volatility / crash-boom style synthetic index we care about.
+// Every Deriv volatility / crash-boom style synthetic index
 // (Standard 2s-update indices + the 1s "1HZ" versions.)
 let markets = [
     { id: 'R_10', name: 'VOLATILITY 10 INDEX' },
@@ -78,7 +72,6 @@ let markets = [
 ];
 
 // Per-symbol rolling tick data used for every stat in the app.
-// digitStats[symbol] = { digits:[], directions:[], prices:[], decimals:null, lastPrice:null }
 const MAX_SAMPLE = 250;
 let digitStats = {};
 let reqIdToSymbol = {};
@@ -86,17 +79,17 @@ let reqCounter = 1000;
 let symbolsReady = false;
 
 // Prediction State
-let predType = 'rise_fall'; // 'rise_fall' | 'even_odd' | 'over_under' | 'matches_differs'
+let predType = 'rise_fall';
 let predDigit = 0;
 let predDuration = 3;
-let predMode = 'manual'; // 'manual' | 'auto'
-let autoSuggestion = null; // { action, label, confidence }
+let predMode = 'manual';
+let autoSuggestion = null;
 
 // Radar controls
 let radarOuBarrier = 4;
 let radarSampleSize = 120;
 
-// Digit Scope panel (TraderScheme "Dcircles" style single-market analyzer)
+// Digit Scope panel
 let scopeMarket = 'R_10';
 let scopeSampleSize = 120;
 let scopeTradeType = 'even_odd';
@@ -106,26 +99,22 @@ let botGenTradeType = 'even_odd';
 let predictions = JSON.parse(localStorage.getItem('kelvin_predictions')) || [];
 let activePrediction = null;
 
-// --- DOM Elements ---
+// DOM Elements
 const elGlobalStatusDot = document.getElementById('global-status-dot');
 const elGlobalStatusText = document.getElementById('global-status-text');
 const elMarketStatusDot = document.getElementById('market-status-dot');
 const elMarketStatusText = document.getElementById('market-status-text');
 const elLoginBtn = document.getElementById('login-modal-btn');
 const elAuthWarning = document.getElementById('auth-warning');
-
 const elHeaderMarkets = document.getElementById('header-markets');
 const elMarketCards = document.getElementById('market-cards');
 const elActiveMarketName = document.getElementById('active-market-name');
 const elCurrentPriceDisplay = document.getElementById('current-price-display');
-
 const elMomentumVal = document.getElementById('momentum-val');
 const elMomentumLabel = document.getElementById('momentum-label');
 const elGaugeNeedle = document.getElementById('gauge-needle');
-
 const elModeToggle = document.getElementById('mode-toggle');
 const elModeHelp = document.getElementById('mode-help');
-
 const elPredictionTypeBtns = document.querySelectorAll('#prediction-type .toggle-btn');
 const elDigitGroup = document.getElementById('digit-selection-group');
 const elDigitLabel = document.getElementById('digit-selection-label');
@@ -134,46 +123,37 @@ const elDurationBtns = document.querySelectorAll('#duration-ticks .toggle-btn');
 const elBtnUp = document.getElementById('btn-up');
 const elBtnDown = document.getElementById('btn-down');
 const elActionButtonsContainer = document.getElementById('action-buttons-container');
-
 const elAutoBox = document.getElementById('auto-predict-box');
 const elAutoConfidence = document.getElementById('auto-confidence');
 const elAutoSide = document.getElementById('auto-side');
 const elAutoBarFill = document.getElementById('auto-bar-fill');
 const elBtnConfirmAuto = document.getElementById('btn-confirm-auto');
-
 const elAccuracyBar = document.getElementById('accuracy-bar');
 const elAccuracyText = document.getElementById('accuracy-text');
 const elAccuracySubtext = document.getElementById('accuracy-subtext');
 const elAccuracyBreakdown = document.getElementById('accuracy-breakdown');
 const elHistoryList = document.getElementById('history-list');
-
 const elLoginModal = document.getElementById('login-modal');
 const elCancelLogin = document.getElementById('cancel-login');
 const elSubmitLogin = document.getElementById('submit-login');
 const elInputAppId = document.getElementById('app-id');
 const elInputApiToken = document.getElementById('api-token');
 const elInputAccountId = document.getElementById('account-id');
-
 const elBanner = document.getElementById('prediction-banner');
 const elBannerText = document.getElementById('banner-text');
-
 const elShowLogBtn = document.getElementById('show-log-btn');
 const elLogModal = document.getElementById('log-modal');
 const elCloseLogBtn = document.getElementById('close-log-btn');
 const elLogContainer = document.getElementById('log-container');
-
 const elRadarGrid = document.getElementById('radar-grid');
 const elRadarOuBarrier = document.getElementById('radar-ou-barrier');
 const elRadarSampleSize = document.getElementById('radar-sample-size');
-
 const elScanBtn = document.getElementById('scan-btn');
 const elScannerConsole = document.getElementById('scanner-console');
 const elScannerResult = document.getElementById('scanner-result');
-
 const elDualMarketSelect = document.getElementById('dual-market-select');
 const elDualPairSelect = document.getElementById('dual-pair-select');
 const elDualOutput = document.getElementById('dual-output');
-
 const elScopeMarketSelect = document.getElementById('scope-market-select');
 const elScopeTradeType = document.getElementById('scope-trade-type');
 const elScopeTickCount = document.getElementById('scope-tick-count');
@@ -182,7 +162,6 @@ const elScopeDigits = document.getElementById('scope-digits');
 const elScopeHistoryTrack = document.getElementById('scope-history-track');
 const elScopeBars = document.getElementById('scope-bars');
 const elScopeNote = document.getElementById('scope-note');
-
 const elBotStake = document.getElementById('bot-stake');
 const elBotDuration = document.getElementById('bot-duration');
 const elBotMartingale = document.getElementById('bot-martingale');
@@ -212,8 +191,7 @@ function addLog(msg, type = 'info') {
     }
 }
 
-// --- Initialization ---
-// --- Initialization ---
+// Initialization
 function init() {
     markets.forEach(m => {
         digitStats[m.id] = {
@@ -236,9 +214,8 @@ function init() {
     applyPredTypeUI();
 }
 
-// --- WebSocket & Deriv API (MODERN FLOW) ---
+// WebSocket & Deriv API
 let connectionTimeoutTimer = null;
-
 async function connectWS() {
     if (ws) {
         ws.onclose = null;
@@ -278,10 +255,10 @@ async function connectWS() {
 
     ws = new WebSocket(wsUrl);
 
-    // Watchdog: If connection hangs or times out (e.g. ISP or firewall issue), auto-switch gateway
+    // If connection hangs or times out, auto-switch gateway
     connectionTimeoutTimer = setTimeout(() => {
         if (ws && ws.readyState === WebSocket.CONNECTING) {
-            addLog(`Connection to ${currentHost} took too long to respond. Switching gateway...`, 'error');
+            addLog(`Connection to ${currentHost} took too long to respond - Switching gateway...`, 'error');
             ws.onclose = null;
             ws.onerror = null;
             ws.close();
@@ -426,7 +403,7 @@ async function connectWS() {
             currentGatewayIndex = (currentGatewayIndex + 1) % gateways.length;
         }
 
-        // Real close code/reason instead of a generic message, so a bad
+        // Real close reason instead of a generic message, so a bad
         // app_id, invalid token, or network block is actually diagnosable.
         addLog(`WebSocket connection closed (code ${event.code}${event.reason ? ': ' + event.reason : ''}).`, 'error');
 
@@ -509,7 +486,7 @@ function startPublicTickPolling() {
     tickPollInterval = setInterval(() => {
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-        // 1. Poll the active market's latest tick every second
+        // Poll the active market's latest tick every second
         const reqIdActive = ++reqCounter;
         reqIdToSymbol[reqIdActive] = activeMarket;
         ws.send(JSON.stringify({
@@ -520,7 +497,7 @@ function startPublicTickPolling() {
             req_id: reqIdActive
         }));
 
-        // 2. Poll other markets in a round-robin rotation so all radar cards stay fresh
+        // Poll other markets in a round-robin rotation so all radar cards stay fresh
         pollRoundRobinIndex = (pollRoundRobinIndex + 1) % markets.length;
         const otherMarket = markets[pollRoundRobinIndex].id;
         if (otherMarket !== activeMarket) {
@@ -651,7 +628,7 @@ function updateConnectionStatus(status) {
     elMarketStatusText.textContent = text;
 }
 
-// --- Stats engine (shared by radar, auto-predict, scanner, dual assistant) ---
+// Stats engine 
 function computeStats(symbol, sampleSize) {
     const stat = digitStats[symbol];
     if (!stat) return null;
@@ -705,7 +682,7 @@ function edgeTag(pctA) {
     return { cls: 'flat', label: 'NO EDGE' };
 }
 
-// --- Momentum Gauge (drives the manual "Rise/Fall" feel) ---
+// Momentum Gauge
 function updateGaugeUI() {
     const s = computeStats(activeMarket, radarSampleSize);
     if (!s || s.risePct === undefined) {
@@ -729,7 +706,7 @@ function setGaugeValue(percent, label) {
     elGaugeNeedle.style.transform = `rotate(${angle}deg)`;
 }
 
-// --- Auto-Predict (Kelvin picks the side, you just confirm) ---
+// Auto-Predict 
 function recomputeAutoSuggestion() {
     if (predMode !== 'auto') return;
     const s = computeStats(activeMarket, radarSampleSize);
@@ -801,7 +778,7 @@ function syncDigitButtons() {
     });
 }
 
-// --- Prediction Logic ---
+// Prediction Logic
 function placePrediction(action) {
     if (activePrediction) {
         alert("A prediction is already running.");
@@ -1051,7 +1028,7 @@ function selectMarket(marketId) {
     highlightActiveRadarCard();
 }
 
-// --- Digit Radar (all markets at once) ---
+// Digit Radar
 function renderRadarSkeleton() {
     elRadarGrid.innerHTML = '';
     markets.forEach(m => {
@@ -1170,7 +1147,7 @@ function renderSplitBar(elId, pctA, pctB) {
     `;
 }
 
-// --- AI Scanner ("scan all markets for the best entry") ---
+// AI Scanner
 function runScanner() {
     elScanBtn.disabled = true;
     elScanBtn.textContent = 'SCANNING…';
@@ -1274,7 +1251,7 @@ function openResultInScope(result) {
     if (scopeNavBtn) scopeNavBtn.click();
 }
 
-// --- Digit Scope panel (single-market circular digit view, TraderScheme "Dcircles" style) ---
+// Digit Scope panel
 function populateScopeMarketSelect() {
     elScopeMarketSelect.innerHTML = '';
     markets.forEach(m => {
@@ -1327,7 +1304,7 @@ function updateScopePanel() {
         elScopeDigits.appendChild(c);
     }
 
-    // Recent E/O history strip (most recent last, like the trade ladder in the screenshot)
+    // Recent E/O history strip
     elScopeHistoryTrack.innerHTML = '';
     const recentDigits = stat.digits.slice(-40);
     recentDigits.forEach(d => {
@@ -1339,7 +1316,7 @@ function updateScopePanel() {
     });
     elScopeHistoryTrack.scrollLeft = elScopeHistoryTrack.scrollWidth;
 
-    // Bars, driven by the selected Trade Type
+    // Bars driven by the selected Trade Type
     elScopeBars.innerHTML = '';
     let rows;
     if (scopeTradeType === 'over_under') {
@@ -1373,14 +1350,13 @@ function updateScopePanel() {
     elScopeNote.textContent = `Last ${s.n} ticks analyzed`;
 }
 
-// --- Bot Generator (builds a Deriv Bot / DBot Blockly XML strategy file) ---
+// Bot Generator (builds a Deriv Bot / DBot Blockly XML strategy file)
 function blocklyId() {
     // Blockly just needs a unique-ish string id per block.
     return 'k' + Math.random().toString(36).slice(2, 10);
 }
 
-// Works out which side Kelvin favors for a given trade type (used by the
-// bot generator tabs, and by anything on the Scope page reading `scopeTradeType`).
+// Works out which side Kelvin favors for a given trade type
 function getContractInfoForType(tradeType, symbol, sampleSize, barrierDigit) {
     const s = computeStats(symbol, sampleSize);
     if (!s) return null;
@@ -1463,10 +1439,7 @@ function getFavoredContract() {
     };
 }
 
-// Builds a "scanner" Deriv Bot: trades contractA (or contractB if flip=false
-// and Kelvin's read favors B), and on a loss either repeats or flips to the
-// other side of the pair, growing the stake by `martingale` each loss and
-// resetting it on a win — modeled on the flip-on-loss scanner strategy.
+// Builds a "scanner" Deriv Bot
 function updateBotBarrierFieldVisibility() {
     if (!elBotBarrierField) return;
     if (botGenTradeType === 'over_under') {
@@ -1474,8 +1447,6 @@ function updateBotBarrierFieldVisibility() {
         elBotBarrierLabel.textContent = 'Over/Under barrier (0–9)';
         if (elBotBarrier.value === '') elBotBarrier.value = radarOuBarrier;
     } else {
-        // Even/Odd and Rise/Fall need no barrier; Matches/Differs auto-picks
-        // the hottest/coldest digit from the sample, so it needs no manual input either.
         elBotBarrierField.style.display = 'none';
     }
 }
@@ -1557,9 +1528,7 @@ function buildBotXml(opts) {
             </next>` : '';
 
     // Optional stop-after-loss-of check: once cumulative loss exceeds the
-    // threshold, the bot simply stops calling trade_again (a hard circuit
-    // breaker on top of whatever Stop Loss you also set in DBot's own
-    // summary card).
+    // threshold, the bot simply stops calling trade_again
     const tradeAgainStack = stopLoss > 0 ? `
       <block type="controls_if" id="${idStopIf}">
         <value name="IF0">
@@ -1797,7 +1766,7 @@ function generateBot() {
     `;
 }
 
-// --- Dual-Side Assistant ---
+// Dual-Side Assistant
 function populateDualMarketSelect() {
     elDualMarketSelect.innerHTML = '';
     markets.forEach(m => {
@@ -1860,7 +1829,7 @@ function updateDualAssistant() {
     `;
 }
 
-// --- Auth & Login ---
+// Auth & Login
 function updateAuthUI() {
     if (apiToken && !authFailed) {
         const idLabel = accountId ? ` (${accountId})` : '';
@@ -1891,7 +1860,7 @@ function logout() {
     connectWS();
 }
 
-// --- prediction-type UI switching (shared by manual + auto modes) ---
+// prediction-type UI switching
 function applyPredTypeUI() {
     if (predType === 'rise_fall') {
         elDigitGroup.style.display = 'none';
@@ -1915,7 +1884,7 @@ function applyPredTypeUI() {
     recomputeAutoSuggestion();
 }
 
-// --- Event Listeners Setup ---
+// Event Listeners Setup
 function setupEventListeners() {
     elPredictionTypeBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -2117,7 +2086,7 @@ function setupEventListeners() {
     initPageNav();
 }
 
-// --- Page Navigation: navbar tabs, one tool page visible at a time ---
+// Page Navigation: navbar tabs, one tool page visible at a time
 function initPageNav() {
     const navBtns = document.querySelectorAll('.nav-btn');
     const pages = document.querySelectorAll('.app-page');

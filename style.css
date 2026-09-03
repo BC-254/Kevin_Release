@@ -335,7 +335,7 @@ button {
 .m-card .m-price { font-size: 0.9rem; font-family: var(--font-mono); margin-bottom: 4px; }
 .m-card .m-trend { font-size: 0.7rem; color: var(--text-secondary); }
 
-/* ---------- Digit Radar ---------- */
+/* Digit Radar */
 .radar-section {
     max-width: 1200px;
     margin: 0 auto 32px auto;
@@ -365,7 +365,7 @@ button {
     font-family: var(--font-family);
     font-size: 0.8rem;
 }
-/* --- Page Navigation (navbar tabs, one tool visible at a time) --- */
+/* Page Navigation */
 .main-nav {
     display: flex;
     gap: 4px;
@@ -408,7 +408,7 @@ button {
     .nav-btn { padding: 8px 12px; font-size: 0.72rem; }
 }
 
-/* --- Digit Scope panel (TraderScheme "Dcircles" style) --- */
+/* Digit Scope panel */
 .scope-section { padding: 20px 24px 0; }
 .scope-panel { padding: 22px 24px 26px; }
 
@@ -756,7 +756,7 @@ button {
 .edge-tag.mild { background: var(--accent-yellow); color: #2b1a00; }
 .edge-tag.flat { background: var(--border-color); color: var(--text-secondary); }
 
-/* ---------- AI Scanner (matches screenshot 4) ---------- */
+/* AI Scanner */
 .scanner-section {
     max-width: 1200px;
     margin: 0 auto 32px auto;
@@ -827,7 +827,7 @@ button {
 .scan-btn:hover { filter: brightness(1.1); }
 .scan-btn:disabled { opacity: 0.6; cursor: wait; }
 
-/* ---------- Dual-side assistant ---------- */
+/* Dual-side assistant */
 .dual-section {
     max-width: 1200px;
     margin: 0 auto 32px auto;
